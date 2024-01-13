@@ -522,39 +522,62 @@ def calculate_bert_score(summary, document):
     return {"precision": P[0].item(), "recall": R[0].item(), "f1": F1[0].item()}
 
 
-# ToDo: Add JSON enforcement
 import openai
+from typing import List
+from pydantic import BaseModel
+
+class EvaluationResponse(BaseModel):
+    fluency: int
+    coherence: int
+    relevance: int
+    consistency: int
+    justification: str
+
+class GptEvaluation(BaseModel):
+    evaluations: List[EvaluationResponse]
+
+import openai
+from pydantic import ValidationError
 
 def g_eval_with_gpt(summary, document, openai_api_key):
-    """
-    Evaluates a summary using GPT model by generating a score based on fluency, coherence, relevance, and consistency.
-
-    Args:
-        summary (str): The generated summary text.
-        document (str): The original source document text.
-        openai_api_key (str): The API key for OpenAI.
-
-    Returns:
-        str: The evaluation response from GPT.
-    """
     client = openai.OpenAI(api_key=openai_api_key)
 
     evaluation_prompt = (
-        f"Evaluate the following summary based on fluency, coherence, relevance, and consistency: \n"
+        f"Return a JSON response evaluating the following summary based on fluency, coherence, relevance, and consistency: \n"
         f"Summary: {summary}\nDocument: {document}\n"
-        "Rate each aspect from 1 to 5 and provide a brief justification for your rating."
+        "Rate each aspect from 1 to 5 and provide a brief justification."
     )
 
     messages = [{"role": "system", "content": evaluation_prompt}]
 
     try:
-        completion = client.Completions.create(
+        resp = client.Completions.create(
             messages=messages,
             model="gpt-4-turbo",
-            seed=42,  # Consider removing the seed for varied responses
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "EvaluateSummary",
+                        "parameters": GptEvaluation.model_json_schema(),
+                    },
+                }
+            ],
+            tool_choice={
+                "type": "function",
+                "function": {"name": "EvaluateSummary"},
+            },
         )
-        evaluation_response = completion.choices[0].message["content"]
-        return evaluation_response
+
+        # Validate and parse the response
+        evaluation = GptEvaluation.model_validate_json(
+            resp.choices[0].message.tool_calls[0].function.arguments
+        )
+        return evaluation
+    except ValidationError as e:
+        print(f"Validation error: {e}")
+        return None
     except Exception as e:
         print(f"An error occurred during G-Eval with GPT: {e}")
         return None
+
