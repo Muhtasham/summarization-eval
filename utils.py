@@ -2,6 +2,7 @@ import os
 import re
 import textwrap
 import spacy
+import openai
 from typing import List, Set, Union, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -485,3 +486,46 @@ def detect_hallucinations(
     return results
 
 # based on https://eugeneyan.com/writing/abstractive/
+# ToDO:
+from rouge import Rouge
+
+def calculate_rouge_c(summary, document):
+    rouge = Rouge()
+    scores = rouge.get_scores(summary, document)
+    return scores  # This will return scores for ROUGE-1, ROUGE-2, and ROUGE-L
+
+from bert_score import score as bert_score
+
+def calculate_bert_score(summary, document):
+    P, R, F1 = bert_score([summary], [document], lang="en", rescale_with_baseline=True)
+    return {"precision": P, "recall": R, "f1": F1}
+
+# ToDo: Add JSON enforcement
+def g_eval_with_gpt(summary, document, openai_api_key,):
+    
+    env_values = get_env_values()
+    openai_api_key = env_values["OPENAI_API_KEY"]
+    client = openai.OpenAI(api_key=openai_api_key)
+
+    evaluation_prompt = (
+        f"Evaluate the following summary based on fluency, coherence, relevance, and consistency: \n"
+        f"Summary: {summary}\nDocument: {document}\n"
+        "Rate each aspect from 1 to 5 and provide a brief justification for your rating."
+    )
+
+    messages = [
+        {"role": "system", "content": evaluation_prompt}
+    ]
+
+    try:
+        completion = client.Completions.create(
+            messages=messages,
+            model="gpt-4-turbo",
+            seed=42,
+        )
+        evaluation_response = completion.choices[0].message["content"]
+        return evaluation_response
+    except Exception as e:
+        print(f"An error occurred during G-Eval with GPT: {e}")
+        return None
+
