@@ -1,0 +1,4 @@
+spacy
+scikit-learn
+sentence-transformers
+openai
