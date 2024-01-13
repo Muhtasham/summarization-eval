@@ -22,6 +22,7 @@ nlp = spacy.load("en_core_web_lg")
 # Load the embedding model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
+
 def process_llm_results(
     result: object,
     text: str,
@@ -204,6 +205,7 @@ def process_llm_results(
         rprint(f"[bold red]Error detecting hallucinated sentences:[/bold red] {e}")
         rprint("\n")  # Add a separator
 
+
 def get_env_values():
     """
     Retrieves required environment variables.
@@ -226,6 +228,7 @@ def get_env_values():
         raise ValueError(f"Missing environment variables: {', '.join(missing_vars)}")
 
     return env_values
+
 
 def read_text(file_path: str) -> str:
     """
@@ -260,6 +263,7 @@ def preprocess_text(text: str) -> str:
     ]
 
     return " ".join(tokens)
+
 
 def new_words_in_summary(original_text: str, summary: str) -> Set[str]:
     """
@@ -485,9 +489,11 @@ def detect_hallucinations(
 
     return results
 
+
 # based on https://eugeneyan.com/writing/abstractive/
 # ToDO:
 from rouge import Rouge
+
 
 def calculate_rouge_c(summary, document):
     """
@@ -506,6 +512,7 @@ def calculate_rouge_c(summary, document):
 
 
 from bert_score import score as bert_score
+
 
 def calculate_bert_score(summary, document):
     """
@@ -526,6 +533,7 @@ import openai
 from typing import List
 from pydantic import BaseModel, ValidationError
 
+
 class EvaluationResponse(BaseModel):
     fluency: int
     coherence: int
@@ -533,8 +541,10 @@ class EvaluationResponse(BaseModel):
     consistency: int
     justification: str
 
+
 class GptEvaluation(BaseModel):
     evaluations: List[EvaluationResponse]
+
 
 def g_eval_with_gpt(summary, document, openai_api_key):
     client = openai.OpenAI(api_key=openai_api_key)
@@ -577,4 +587,3 @@ def g_eval_with_gpt(summary, document, openai_api_key):
     except Exception as e:
         print(f"An error occurred during G-Eval with GPT: {e}")
         return None
-
