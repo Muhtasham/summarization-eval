@@ -524,7 +524,7 @@ def calculate_bert_score(summary, document):
 
 import openai
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 class EvaluationResponse(BaseModel):
     fluency: int
@@ -535,9 +535,6 @@ class EvaluationResponse(BaseModel):
 
 class GptEvaluation(BaseModel):
     evaluations: List[EvaluationResponse]
-
-import openai
-from pydantic import ValidationError
 
 def g_eval_with_gpt(summary, document, openai_api_key):
     client = openai.OpenAI(api_key=openai_api_key)
