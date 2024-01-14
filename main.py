@@ -66,9 +66,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run LLM with different prompts.")
     parser.add_argument(
         "--debug",
-        action="store_true",
-        default=False,
-        help="Enable debug mode. Default is False. Set to True by providing this flag.",
+        default=True,
+        help="Enable debug mode. If enabled, only low temperatures will be used and some debug-specific output will be printed.",
     )
     parser.add_argument(
         "--file-path",
