@@ -128,9 +128,7 @@ def process_llm_results(
         debug and len(all_results) > 1
     ):  # Ensures there's a previous result to compare with
         try:
-            previous_result = (
-                all_results[-2]
-            )  # Get the previous result
+            previous_result = all_results[-2]  # Get the previous result
 
             # Cosine Similarity with Previous Summary
             cosine_similarity_prev = cosine_similarity_tf_idf(
@@ -261,60 +259,64 @@ def process_llm_results(
             f"[bold red]Error detecting hallucinated sentences:[/bold red] {e}"
         )
 
-    # More advanced metrics
-
-    rprint("\n")  # Add a separator before new metrics
+    # Advanced Analysis Table
+    advanced_analysis_table = Table(title="Advanced Analysis")
+    advanced_analysis_table.add_column("Metric", style="magenta")
+    advanced_analysis_table.add_column("Value", justify="right", style="cyan")
+    advanced_analysis_table.add_column(
+        "Higher/Lower is Better", style="green", no_wrap=True
+    )
 
     # ROUGE Scores
     try:
         rouge_scores = calculate_rouge_c(generated_text, text)
-        rouge_table = Table(title="ROUGE Scores (Higher is Better)")
-        rouge_table.add_column("Metric", style="magenta")
-        rouge_table.add_column("Score", justify="right", style="cyan")
         for key in rouge_scores[0]:
-            rouge_table.add_row(key, f"{rouge_scores[0][key]['f']:.2f}")
-        rprint(rouge_table)
+            advanced_analysis_table.add_row(
+                key, f"{rouge_scores[0][key]['f']:.2f}", "Higher"
+            )
     except Exception as e:
         logger.error(f"[bold red]Error computing ROUGE scores:[/bold red] {e}")
-
-    rprint("\n")  # Add a separator before BERTScore
 
     # BERTScore
     try:
         bert_scores = calculate_bert_score(generated_text, text)
-        bert_table = Table(title="BERTScore (Higher is Better)")
-        bert_table.add_column("Metric", style="magenta")
-        bert_table.add_column("Score", justify="right", style="cyan")
         for key, value in bert_scores.items():
-            bert_table.add_row(key, f"{value:.3f}")
-        rprint(bert_table)
+            advanced_analysis_table.add_row(
+                f"BERTScore {key}", f"{value:.3f}", "Higher"
+            )
     except Exception as e:
         logger.error(f"[bold red]Error computing BERTScore:[/bold red] {e}")
 
-    rprint("\n")  # Add a separator before GPT-based Evaluation
-
     # GPT-based Evaluation
+    justification_text = ""
     try:
         gpt_evaluation = g_eval_with_gpt(generated_text, text, client)
         if gpt_evaluation and gpt_evaluation.evaluations:
-            gpt_table = Table(title="GPT-based Evaluation")
-            gpt_table.add_column("Aspect", style="magenta")
-            gpt_table.add_column("Score", justify="right", style="cyan")
-
-            # Assuming there is at least one EvaluationResponse in evaluations
             evaluation = gpt_evaluation.evaluations[0]
-            gpt_table.add_row("Fluency", str(evaluation.fluency))
-            gpt_table.add_row("Coherence", str(evaluation.coherence))
-            gpt_table.add_row("Relevance", str(evaluation.relevance))
-            gpt_table.add_row("Consistency", str(evaluation.consistency))
-
-            # Add justification as a separate panel or part of the table
-            justification_panel = Panel(evaluation.justification, title="Justification")
-            
-            rprint(gpt_table)
-            rprint(justification_panel)
+            advanced_analysis_table.add_row(
+                "Fluency", str(evaluation.fluency), "Higher"
+            )
+            advanced_analysis_table.add_row(
+                "Coherence", str(evaluation.coherence), "Higher"
+            )
+            advanced_analysis_table.add_row(
+                "Relevance", str(evaluation.relevance), "Higher"
+            )
+            advanced_analysis_table.add_row(
+                "Consistency", str(evaluation.consistency), "Higher"
+            )
+            justification_text = evaluation.justification
     except Exception as e:
         logger.error(f"[bold red]Error in GPT-based Evaluation:[/bold red] {e}")
+
+    # Print the Advanced Analysis Table
+    rprint(advanced_analysis_table)
+
+    # Print Justification Panel
+    if justification_text:
+        justification_panel = Panel(justification_text, title="Justification")
+        rprint(justification_panel)
+
 
 def read_text(file_path: str) -> str:
     """

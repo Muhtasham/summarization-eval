@@ -26,7 +26,11 @@ def generate_and_process_llm_responses(
     sanitized_text = re.sub(r"[\x00-\x1F]+", "", text)
 
     for temperature in temperatures:
-        llm_name = "LLM Playful" if temperature > 0.5 else "LLM Standard"
+        llm_name = (
+            "LLM call with high temperature"
+            if temperature > 0.5
+            else "LLM call with low temperature"
+        )
         for system_prompt in system_prompts:
             messages = [
                 {"role": "system", "content": f"{system_prompt}: {sanitized_text}"}
@@ -82,9 +86,6 @@ if __name__ == "__main__":
     openai_api_key = env_values["OPENAI_API_KEY"]
     args = parse_args()
     client = OpenAI(api_key=openai_api_key)
-
-    logger.info(client)
-    logger.info(args)
 
     news_text = read_text(args.file_path)
 
