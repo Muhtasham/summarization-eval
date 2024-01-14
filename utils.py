@@ -3,28 +3,83 @@ import re
 import textwrap
 import spacy
 import openai
+import numpy as np
 from typing import List, Set, Union, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_similarity as pairwise_cosine_similarity
 from spacy.lang.en.stop_words import STOP_WORDS
-from sentence_transformers import SentenceTransformer, util
+from retry import retry
 from rich import print as rprint
 from rich.columns import Columns
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.traceback import install
+from rouge import Rouge
+from bert_score import score as bert_score
+from typing import List
+from pydantic import BaseModel, ValidationError
+from logger import logger
+from openai import OpenAI
 
-install(show_locals=True)
+install(show_locals=False, width=120)
 console = Console()
+
+
+def get_env_values():
+    """
+    Retrieves required environment variables.
+
+    Returns:
+        dict: A dictionary containing the values of required environment variables.
+
+    Raises:
+        ValueError: If any required environment variable is not set.
+    """
+    # List of required environment variables
+    required_env_vars = ["OPENAI_API_KEY"]
+
+    # Using a dictionary comprehension to construct the environment variables dictionary
+    env_values = {var: os.environ.get(var) for var in required_env_vars}
+
+    # Check if all required environment variables are set
+    missing_vars = [var for var, value in env_values.items() if not value]
+    if missing_vars:
+        raise ValueError(f"Missing environment variables: {', '.join(missing_vars)}")
+
+    return env_values
+
+
 # Load the spaCy model
 nlp = spacy.load("en_core_web_lg")
-# Load the embedding model
-model = SentenceTransformer("all-MiniLM-L6-v2")
+# Load the OpenAI API key from the environment variables
+env_values = get_env_values()
+openai_api_key = env_values["OPENAI_API_KEY"]
+client = openai.OpenAI(api_key=openai_api_key)
+
+
+@retry(tries=3, delay=2, backoff=2)
+def get_embedding(text: str, model="text-embedding-ada-002", **kwargs) -> List[float]:
+    # replace newlines, which can negatively affect performance.
+    text = text.replace("\n", " ")
+    return client.embeddings.create(input=[text], model=model).data[0].embedding
+
+
+@retry(tries=3, delay=2, backoff=2)
+def get_embeddings(
+    list_of_text: List[str], model="text-embedding-ada-002", **kwargs
+) -> List[List[float]]:
+    assert len(list_of_text) <= 2048, "The batch size should not be larger than 2048."
+
+    # replace newlines, which can negatively affect performance.
+    list_of_text = [text.replace("\n", " ") for text in list_of_text]
+
+    data = client.embeddings.create(input=list_of_text, model=model, **kwargs).data
+    return [d.embedding for d in data]
 
 
 def process_llm_results(
-    result: object,
+    generated_text: str,
     text: str,
     all_results: List[object],
     file_name: str,
@@ -35,15 +90,13 @@ def process_llm_results(
     Process the results obtained from the LLM, performing various analysis and comparison steps.
 
     Args:
-    - result (object): The result object from the LLM.
-    - text (str): The original email text.
+    - generated_text (str): The result object from the LLM.
+    - text (str): The original text text.
     - all_results (List[object]): List of previous results for comparison.
     - file_name (str): The name of the file cirrenlty being processed
     - llm_name (str): The mode of the current LLM
     """
-    # Extract the generated text
     try:
-        generated_text = result.choices[0].message["content"]
         rprint(
             Panel.fit(
                 generated_text,
@@ -52,7 +105,7 @@ def process_llm_results(
             )
         )
     except Exception as e:
-        rprint(f"Error extracting generated text: {e}")
+        logger.error(f"Error extracting generated text: {e}")
         return
 
     # General Analysis Table
@@ -64,12 +117,12 @@ def process_llm_results(
     try:
         overlap_with_original = word_overlap(text, generated_text)
         table.add_row(
-            "Word overlap with the original email",
+            "Word overlap with the original text",
             f"{overlap_with_original * 100:.2f}%",
             "Higher",
         )
     except Exception as e:
-        table.add_row("Word overlap with the original email", f"Error: {e}", "Higher")
+        table.add_row("Word overlap with the original text", f"Error: {e}", "Higher")
 
     if (
         debug and len(all_results) > 1
@@ -80,7 +133,9 @@ def process_llm_results(
             )  # Get the previous result
 
             # Cosine Similarity with Previous Summary
-            cosine_similarity_prev = cosine_sim(generated_text, previous_result)
+            cosine_similarity_prev = cosine_similarity_tf_idf(
+                generated_text, previous_result
+            )
             table.add_row(
                 "Cosine similarity (TF-IDF based) with the previous result",
                 f"{cosine_similarity_prev:.2f}",
@@ -109,23 +164,23 @@ def process_llm_results(
         words_summary = process_text(generated_text)
         jaccard_sim = jaccard_similarity(words_original, words_summary)
         table.add_row(
-            "Jaccard similarity with the original email", f"{jaccard_sim:.2f}", "Higher"
+            "Jaccard similarity with the original text", f"{jaccard_sim:.2f}", "Higher"
         )
     except Exception as e:
         table.add_row(
-            "Jaccard similarity with the original email", f"Error: {e}", "Higher"
+            "Jaccard similarity with the original text", f"Error: {e}", "Higher"
         )
 
     try:
-        cosine_sim_tfidf = cosine_sim(text, generated_text)
+        cosine_sim_tfidf = cosine_similarity_tf_idf(text, generated_text)
         table.add_row(
-            "Cosine similarity (TF-IDF based) with the original email",
+            "Cosine similarity (TF-IDF based) with the original text",
             f"{cosine_sim_tfidf:.2f}",
             "Higher",
         )
     except Exception as e:
         table.add_row(
-            "Cosine similarity (TF-IDF based) with the original email",
+            "Cosine similarity (TF-IDF based) with the original text",
             f"Error: {e}",
             "Higher",
         )
@@ -168,7 +223,7 @@ def process_llm_results(
             rprint(Panel.fit("[bold cyan]New Words in the Summary[/bold cyan]"))
             rprint(Columns(new_words))
     except Exception as e:
-        rprint(f"[bold red]Error computing new words in summary:[/bold red] {e}")
+        logger.error(f"[bold red]Error computing new words in summary:[/bold red] {e}")
 
     rprint("\n")  # Add another separator
 
@@ -202,32 +257,53 @@ def process_llm_results(
             )
             rprint("\n")  # Add a separator
     except Exception as e:
-        rprint(f"[bold red]Error detecting hallucinated sentences:[/bold red] {e}")
-        rprint("\n")  # Add a separator
+        logger.error(
+            f"[bold red]Error detecting hallucinated sentences:[/bold red] {e}"
+        )
 
+    # More advanced metrics
 
-def get_env_values():
-    """
-    Retrieves required environment variables.
+    rprint("\n")  # Add a separator before new metrics
 
-    Returns:
-        dict: A dictionary containing the values of required environment variables.
+    # ROUGE Scores
+    try:
+        rouge_scores = calculate_rouge_c(generated_text, text)
+        rouge_table = Table(title="ROUGE Scores")
+        rouge_table.add_column("Metric", style="magenta")
+        rouge_table.add_column("Score", justify="right", style="cyan")
+        for key in rouge_scores[0]:
+            rouge_table.add_row(key, f"{rouge_scores[0][key]['f']:.2f}")
+        rprint(rouge_table)
+    except Exception as e:
+        logger.error(f"[bold red]Error computing ROUGE scores:[/bold red] {e}")
 
-    Raises:
-        ValueError: If any required environment variable is not set.
-    """
-    # List of required environment variables
-    required_env_vars = ["OPENAI_API_KEY"]
+    rprint("\n")  # Add a separator before BERTScore
 
-    # Using a dictionary comprehension to construct the environment variables dictionary
-    env_values = {var: os.environ.get(var) for var in required_env_vars}
+    # BERTScore
+    try:
+        bert_scores = calculate_bert_score(generated_text, text)
+        bert_table = Table(title="BERTScore")
+        bert_table.add_column("Metric", style="magenta")
+        bert_table.add_column("Score", justify="right", style="cyan")
+        for key, value in bert_scores.items():
+            bert_table.add_row(key, f"{value:.3f}")
+        rprint(bert_table)
+    except Exception as e:
+        logger.error(f"[bold red]Error computing BERTScore:[/bold red] {e}")
 
-    # Check if all required environment variables are set
-    missing_vars = [var for var, value in env_values.items() if not value]
-    if missing_vars:
-        raise ValueError(f"Missing environment variables: {', '.join(missing_vars)}")
+    rprint("\n")  # Add a separator before GPT-based Evaluation
 
-    return env_values
+    # GPT-based Evaluation
+    try:
+        gpt_evaluation = g_eval_with_gpt(generated_text, text, client)
+        if gpt_evaluation:
+            gpt_table = Table(title="GPT-based Evaluation")
+            gpt_table.add_column("Aspect", style="magenta")
+            gpt_table.add_column("Score", justify="right", style="cyan")
+            gpt_table.add_column("Justification", style="green")
+            rprint(gpt_table)
+    except Exception as e:
+        logger.error(f"[bold red]Error in GPT-based Evaluation:[/bold red] {e}")
 
 
 def read_text(file_path: str) -> str:
@@ -249,7 +325,7 @@ def read_text(file_path: str) -> str:
             text = file.read()
         return text
     except Exception as e:
-        print(f"Error reading email text: {e}")
+        print(f"Error reading text text: {e}")
         return ""
 
 
@@ -359,7 +435,7 @@ def jaccard_similarity(set1: Set[str], set2: Set[str]) -> float:
     return intersection / union
 
 
-def cosine_sim(text1: str, text2: str) -> float:
+def cosine_similarity_tf_idf(text1: str, text2: str) -> float:
     """
     Calculate cosine similarity between two texts using TF-IDF.
 
@@ -372,7 +448,11 @@ def cosine_sim(text1: str, text2: str) -> float:
     """
     vectorizer = TfidfVectorizer().fit_transform([text1, text2])
     vectors = vectorizer.toarray()
-    return cosine_similarity(vectors)[0][1]
+    return pairwise_cosine_similarity(vectors)[0][1]
+
+
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
 def wrap_text(text: str, width: int = 50, subsequent_indent: str = "") -> str:
@@ -393,43 +473,25 @@ def wrap_text(text: str, width: int = 50, subsequent_indent: str = "") -> str:
 def cosine_similarity_embeddings(
     original_text: str, summary: str, return_pairs: bool = True
 ) -> Union[List[Dict[str, float]], List[float]]:
-    """
-    Compute the cosine similarity between the embeddings of summary and each sentence in original_text.
-
-    This function uses a pre-defined `model` (from the sentence-transformers library)
-    to obtain embeddings for each sentence in original_text and the entire summary.
-
-    Parameters:
-    - original_text (str): The original text.
-    - summary (str): The summary or generated text.
-    - return_pairs (bool): Whether to return sorted pairs or just scores.
-
-    Returns:
-    - Union[List[Dict[str, float]], List[float]]: Depending on return_pairs, either a list of dictionaries containing sentence pairs with their cosine similarity score or just the scores.
-    """
     try:
-        original_text = preprocess_text(original_text)
-        summary = preprocess_text(summary)
-
+        # Splitting the original text into sentences
         original_sentences = [sent.text for sent in nlp(original_text).sents]
-        summary_sentences = [sent.text for sent in nlp(summary).sents]
 
-        original_embeddings = model.encode(original_sentences, convert_to_tensor=True)
+        # Getting embeddings for each sentence in the original text and the entire summary
+        original_embeddings = get_embeddings(original_sentences)
+        summary_embedding = get_embedding(summary)
+
         scores = []
 
-        for sentence in summary_sentences:
-            sentence_embedding = model.encode(sentence, convert_to_tensor=True)
-            cosine_scores = util.pytorch_cos_sim(
-                sentence_embedding, original_embeddings
-            )
-            best_match_idx = cosine_scores.argmax().item()
-            scores.append(cosine_scores[0][best_match_idx].item())
+        for sentence_embedding in original_embeddings:
+            score = cosine_similarity(sentence_embedding, summary_embedding)
+            scores.append(score)
 
         if return_pairs:
             pairs = [
                 {
                     "original_sentence": wrap_text(original_sentences[i]),
-                    "summary_sentence": wrap_text(summary_sentences[i]),
+                    "summary_sentence": wrap_text(summary),
                     "score": scores[i],
                 }
                 for i in range(len(scores))
@@ -491,10 +553,7 @@ def detect_hallucinations(
 
 
 # based on https://eugeneyan.com/writing/abstractive/
-# ToDO:
-from rouge import Rouge
-
-
+# ToDO: verify the metrics
 def calculate_rouge_c(summary, document):
     """
     Calculates ROUGE scores comparing a summary with the source document.
@@ -509,9 +568,6 @@ def calculate_rouge_c(summary, document):
     rouge = Rouge()
     scores = rouge.get_scores(summary, document)
     return scores
-
-
-from bert_score import score as bert_score
 
 
 def calculate_bert_score(summary, document):
@@ -529,12 +585,18 @@ def calculate_bert_score(summary, document):
     return {"precision": P[0].item(), "recall": R[0].item(), "f1": F1[0].item()}
 
 
-import openai
-from typing import List
-from pydantic import BaseModel, ValidationError
-
-
 class EvaluationResponse(BaseModel):
+    """
+    Represents an evaluation response with various aspects of text analysis.
+
+    Attributes:
+        fluency (int): Rating for the fluency of the text.
+        coherence (int): Rating for the coherence of the text.
+        relevance (int): Rating for the relevance of the text to the topic.
+        consistency (int): Rating for the consistency of the text.
+        justification (str): Justification or explanation for the given ratings.
+    """
+
     fluency: int
     coherence: int
     relevance: int
@@ -543,11 +605,33 @@ class EvaluationResponse(BaseModel):
 
 
 class GptEvaluation(BaseModel):
+    """
+    Represents a collection of evaluation responses.
+
+    Attributes:
+        evaluations (List[EvaluationResponse]): A list of EvaluationResponse objects.
+    """
+
     evaluations: List[EvaluationResponse]
 
 
-def g_eval_with_gpt(summary, document, openai_api_key):
-    client = openai.OpenAI(api_key=openai_api_key)
+def g_eval_with_gpt(summary: str, document: str, client: OpenAI) -> GptEvaluation:
+    """
+    Evaluates a given summary text using GPT-based evaluation tool.
+
+    Args:
+        summary (str): The summary text to be evaluated.
+        document (str): The original document text related to the summary.
+        client: The client object to interact with the OpenAI API.
+
+    Returns:
+        GptEvaluation: An object containing the evaluation results.
+                       Returns None if an error occurs.
+
+    Raises:
+        ValidationError: If the response from the evaluation tool is not valid.
+        Exception: For other errors during the evaluation process.
+    """
 
     evaluation_prompt = (
         f"Return a JSON response evaluating the following summary based on fluency, coherence, relevance, and consistency: \n"
@@ -558,9 +642,9 @@ def g_eval_with_gpt(summary, document, openai_api_key):
     messages = [{"role": "system", "content": evaluation_prompt}]
 
     try:
-        resp = client.Completions.create(
+        resp = client.chat.completions.create(
             messages=messages,
-            model="gpt-4-turbo",
+            model="gpt-3.5-turbo",
             tools=[
                 {
                     "type": "function",

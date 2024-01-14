@@ -1,13 +1,13 @@
-import argparse
 from typing import List
 from openai import OpenAI
-import re
 from utils import (
     get_env_values,
     read_text,
     process_llm_results,
 )
-from rich import print as rprint
+from logger import logger
+import re
+import argparse
 
 
 def generate_and_process_llm_responses(
@@ -32,21 +32,23 @@ def generate_and_process_llm_responses(
                 {"role": "system", "content": f"{system_prompt}: {sanitized_text}"}
             ]
             try:
-                completion = client.Completions.create(
-                    messages=messages, model="gpt-3.5-turbo", temperature=temperature
+                completion = client.chat.completions.create(
+                    messages=messages,
+                    model="gpt-3.5-turbo",
+                    temperature=temperature,
                 )
-                model_reply = completion.choices[0]
+                model_reply = completion.choices[0].message.content
                 all_results.append(model_reply)
                 process_llm_results(
-                    model_reply, text, all_results, file_name, llm_name, debug
+                    str(model_reply), text, all_results, file_name, llm_name, debug
                 )
                 if debug:
                     # Debug-specific output or processing
-                    rprint(
+                    logger.info(
                         f"Generated with temperature {temperature} using prompt '{system_prompt}'"
                     )
             except Exception as e:
-                rprint(
+                logger.error(
                     f"An error occurred with prompt '{system_prompt}' and temperature {temperature}: {e}"
                 )
 
@@ -81,13 +83,15 @@ if __name__ == "__main__":
     args = parse_args()
     client = OpenAI(api_key=openai_api_key)
 
-    rprint(args)
+    logger.info(client)
+    logger.info(args)
 
     news_text = read_text(args.file_path)
 
     system_prompts = [
-        "Please perform abstractive summarization on the following text",
-        "Please perform extractive summarization on the following text",
+        # "Please perform abstractive summarization on the following text",
+        # "Please perform extractive summarization on the following text",
+        "Summarize the following text briefly",
     ]
     temperatures = [0.2, 0.7]
 
