@@ -129,7 +129,7 @@ def process_llm_results(
     ):  # Ensures there's a previous result to compare with
         try:
             previous_result = (
-                all_results[-2].generations[0][0].text
+                all_results[-2]
             )  # Get the previous result
 
             # Cosine Similarity with Previous Summary
@@ -268,7 +268,7 @@ def process_llm_results(
     # ROUGE Scores
     try:
         rouge_scores = calculate_rouge_c(generated_text, text)
-        rouge_table = Table(title="ROUGE Scores")
+        rouge_table = Table(title="ROUGE Scores (Higher is Better)")
         rouge_table.add_column("Metric", style="magenta")
         rouge_table.add_column("Score", justify="right", style="cyan")
         for key in rouge_scores[0]:
@@ -282,7 +282,7 @@ def process_llm_results(
     # BERTScore
     try:
         bert_scores = calculate_bert_score(generated_text, text)
-        bert_table = Table(title="BERTScore")
+        bert_table = Table(title="BERTScore (Higher is Better)")
         bert_table.add_column("Metric", style="magenta")
         bert_table.add_column("Score", justify="right", style="cyan")
         for key, value in bert_scores.items():
@@ -296,15 +296,25 @@ def process_llm_results(
     # GPT-based Evaluation
     try:
         gpt_evaluation = g_eval_with_gpt(generated_text, text, client)
-        if gpt_evaluation:
+        if gpt_evaluation and gpt_evaluation.evaluations:
             gpt_table = Table(title="GPT-based Evaluation")
             gpt_table.add_column("Aspect", style="magenta")
             gpt_table.add_column("Score", justify="right", style="cyan")
-            gpt_table.add_column("Justification", style="green")
+
+            # Assuming there is at least one EvaluationResponse in evaluations
+            evaluation = gpt_evaluation.evaluations[0]
+            gpt_table.add_row("Fluency", str(evaluation.fluency))
+            gpt_table.add_row("Coherence", str(evaluation.coherence))
+            gpt_table.add_row("Relevance", str(evaluation.relevance))
+            gpt_table.add_row("Consistency", str(evaluation.consistency))
+
+            # Add justification as a separate panel or part of the table
+            justification_panel = Panel(evaluation.justification, title="Justification")
+            
             rprint(gpt_table)
+            rprint(justification_panel)
     except Exception as e:
         logger.error(f"[bold red]Error in GPT-based Evaluation:[/bold red] {e}")
-
 
 def read_text(file_path: str) -> str:
     """
