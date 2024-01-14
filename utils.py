@@ -485,6 +485,25 @@ def wrap_text(text: str, width: int = 50, subsequent_indent: str = "") -> str:
 def cosine_similarity_embeddings(
     original_text: str, summary: str, return_pairs: bool = True
 ) -> Union[List[Dict[str, float]], List[float]]:
+    """
+    Compute the cosine similarity between embeddings of sentences in the original text and the summary.
+
+    This function processes the original text and the summary by splitting them into sentences,
+    obtaining embeddings for each sentence, and then computing the cosine similarity
+    between each sentence in the original text and each sentence in the summary.
+
+    Parameters:
+    - original_text (str): The original text, which will be split into sentences.
+    - summary (str): The summary text, which will be split into sentences.
+    - return_pairs (bool, optional): If True, returns a list of dictionaries containing
+      the pairs of sentences with their cosine similarity score. If False, returns
+      only the list of cosine similarity scores. Default is True.
+
+    Returns:
+    - Union[List[Dict[str, float]], List[float]]: If return_pairs is True, returns a list of
+      dictionaries, each containing 'original_sentence', 'summary_sentence', and 'score'.
+      If False, returns a list of cosine similarity scores.
+    """
     try:
         # Splitting the original text into sentences
         original_sentences = [sent.text for sent in nlp(original_text).sents]

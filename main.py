@@ -25,7 +25,12 @@ def generate_and_process_llm_responses(
     """
     sanitized_text = re.sub(r"[\x00-\x1F]+", "", text)
 
-    for temperature in temperatures:
+    # Use only low temperature if debug is True
+    effective_temperatures = (
+        [t for t in temperatures if t <= 0.5] if debug else temperatures
+    )
+
+    for temperature in effective_temperatures:
         llm_name = (
             "LLM call with high temperature"
             if temperature > 0.5
@@ -60,16 +65,10 @@ def generate_and_process_llm_responses(
 def parse_args():
     parser = argparse.ArgumentParser(description="Run LLM with different prompts.")
     parser.add_argument(
-        "--mode",
-        default="norm",
-        choices=["norm", "play"],
-        help="Mode of operation. Can be 'norm' or 'play'.",
-    )
-    parser.add_argument(
         "--debug",
-        action="store_false",
-        default=True,
-        help="Use debug prompts. Default is True. Set to False by providing this flag.",
+        action="store_true",
+        default=False,
+        help="Enable debug mode. Default is False. Set to True by providing this flag.",
     )
     parser.add_argument(
         "--file-path",
