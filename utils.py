@@ -488,29 +488,30 @@ def cosine_similarity_embeddings(
     try:
         # Splitting the original text into sentences
         original_sentences = [sent.text for sent in nlp(original_text).sents]
-
+        summary_sentences = [sent.text for sent in nlp(summary).sents]
         # Getting embeddings for each sentence in the original text and the entire summary
         original_embeddings = get_embeddings(original_sentences)
-        summary_embedding = get_embedding(summary)
+        summary_embeddings = get_embeddings(summary_sentences)
 
         scores = []
 
-        for sentence_embedding in original_embeddings:
-            score = cosine_similarity(sentence_embedding, summary_embedding)
-            scores.append(score)
+        # Calculate cosine similarity for each pair of sentences
+        for i, orig_emb in enumerate(original_embeddings):
+            for j, summ_emb in enumerate(summary_embeddings):
+                score = cosine_similarity(orig_emb, summ_emb)
+                scores.append(
+                    {
+                        "original_sentence": wrap_text(original_sentences[i]),
+                        "summary_sentence": wrap_text(summary_sentences[j]),
+                        "score": score,
+                    }
+                )
 
+        # Sort and return the pairs if required
         if return_pairs:
-            pairs = [
-                {
-                    "original_sentence": wrap_text(original_sentences[i]),
-                    "summary_sentence": wrap_text(summary),
-                    "score": scores[i],
-                }
-                for i in range(len(scores))
-            ]
-            return sorted(pairs, key=lambda x: x["score"], reverse=True)
+            return sorted(scores, key=lambda x: x["score"], reverse=True)
         else:
-            return scores
+            return [score["score"] for score in scores]
 
     except Exception as e:
         print(f"Error computing cosine similarity (embeddings): {e}")
@@ -566,7 +567,7 @@ def detect_hallucinations(
 
 # based on https://eugeneyan.com/writing/abstractive/
 # ToDO: verify the metrics
-def calculate_rouge_c(summary, document):
+def calculate_rouge_c(summary: str, document: str):
     """
     Calculates ROUGE scores comparing a summary with the source document.
 
@@ -582,7 +583,7 @@ def calculate_rouge_c(summary, document):
     return scores
 
 
-def calculate_bert_score(summary, document):
+def calculate_bert_score(summary: str, document: str):
     """
     Calculates BERTScore comparing a summary with the source document.
 
