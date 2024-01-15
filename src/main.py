@@ -21,7 +21,16 @@ def generate_and_process_llm_responses(
 ) -> None:
     """
     Generate responses using the language model with different system prompts and temperatures,
-    and process the results.
+    and process the results. If debug mode is enabled, only use low temperature for generation.
+
+    Args:
+        client (OpenAI): The OpenAI client for making API requests.
+        text (str): The text to be processed.
+        debug (bool): Flag to enable debug mode.
+        file_name (str): The name of the file being processed.
+        system_prompts (List[str]): List of system prompts to use for generation.
+        temperatures (List[float]): List of temperatures to use for generation.
+        all_results (List): List to store all generated results.
     """
     sanitized_text = re.sub(r"[\x00-\x1F]+", "", text)
 
@@ -48,6 +57,7 @@ def generate_and_process_llm_responses(
                 )
                 model_reply = completion.choices[0].message.content
                 all_results.append(model_reply)
+                # Process the results in rich text format and print them in the terminal
                 process_llm_results(
                     str(model_reply), text, all_results, file_name, llm_name, debug
                 )
@@ -71,9 +81,9 @@ def parse_args():
     )
     parser.add_argument(
         "--file-path",
-        default="./news.txt",
+        default="assets/news.txt",
         type=str,
-        help="Path to the email text file.",
+        help="Path to the news text file.",
     )
 
     return parser.parse_args()
@@ -87,12 +97,14 @@ if __name__ == "__main__":
 
     news_text = read_text(args.file_path)
 
+    # Below we define the system prompts and temperatures we want to use.
+
     system_prompts = [
         # "Please perform abstractive summarization on the following text",
         # "Please perform extractive summarization on the following text",
         "Summarize the following text briefly",
     ]
-    temperatures = [0.2, 0.7]
+    temperatures = [0.2, 0.7] # Low and high temperatures for some variety
 
     generate_and_process_llm_responses(
         client, news_text, args.debug, "Original Text", system_prompts, temperatures, []
