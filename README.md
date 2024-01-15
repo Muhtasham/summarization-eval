@@ -1,5 +1,5 @@
 
-# 📝 Reference-Free automatic evaluation for text summarization
+# Summarization Evaluation
 
 Elegantly automate text summarization evaluation in reference-free manner with potential hallucination detection.
 
