@@ -56,9 +56,8 @@ nlp = spacy.load("en_core_web_lg")
 env_values = get_env_values()
 openai_api_key = env_values["OPENAI_API_KEY"]
 client_async = AsyncOpenAI(api_key=openai_api_key)
-client_sync = OpenAI(
-    api_key=openai_api_key
-)
+client_sync = OpenAI(api_key=openai_api_key)
+
 
 @retry(tries=3, delay=2, backoff=2)
 async def aget_embedding(
@@ -66,7 +65,11 @@ async def aget_embedding(
 ) -> List[float]:
     # replace newlines, which can negatively affect performance.
     text = text.replace("\n", " ")
-    return (await client_async.embeddings.create(input=[text], model=model).data[0].embedding)
+    return (
+        await client_async.embeddings.create(input=[text], model=model)
+        .data[0]
+        .embedding
+    )
 
 
 @retry(tries=3, delay=2, backoff=2)
@@ -78,9 +81,9 @@ async def aget_embeddings(
     # replace newlines, which can negatively affect performance.
     list_of_text = [text.replace("\n", " ") for text in list_of_text]
 
-    data = (await client_async.embeddings.create(
-        input=list_of_text, model=model, **kwargs
-    )).data
+    data = (
+        await client_async.embeddings.create(input=list_of_text, model=model, **kwargs)
+    ).data
     return [d.embedding for d in data]
 
 
@@ -102,17 +105,22 @@ def process_llm_results(
     - file_name (str): The name of the file cirrenlty being processed
     - llm_name (str): The mode of the current LLM
     """
+
+    rprint("\n")
+
     try:
         rprint(
             Panel.fit(
                 generated_text,
                 title="[bold red] Generated Summary [/bold red]",
-                subtitle=f"{llm_name}" if debug else None
+                subtitle=f"{llm_name}" if debug else None,
             )
         )
     except Exception as e:
         logger.error(f"Error extracting generated text: {e}")
         return
+
+    rprint("\n")  # Add a separator between the tables
 
     # General Analysis Table
     table = Table(title="General Analysis")
@@ -202,9 +210,9 @@ def process_llm_results(
     # Cosine Similarity (Embeddings) Table
     try:
         cosine_sim_pairs = cosine_similarity_embeddings(text, generated_text)
-        cos_table = Table(title="Top Similar Sentences (Embeddings)")
-        cos_table.add_column("Original Sentence")
-        cos_table.add_column("Summary Sentence")
+        cos_table = Table(title="Sentence pair cosine-similarity Insights")
+        cos_table.add_column("Part of Original Text (Sentence)")
+        cos_table.add_column("Part of Generated Summary (Sentence)")
         cos_table.add_column("Score", justify="right", style="cyan")
 
         top_n = 3
@@ -525,7 +533,7 @@ def cosine_similarity_embeddings(
             for j, summ_emb in enumerate(summary_embeddings):
                 score = cosine_similarity(orig_emb, summ_emb)
                 scores.append(
-                    {   
+                    {
                         # if text is too long, you can use wrap_text to wrap it
                         "original_sentence": (original_sentences[i]),
                         "summary_sentence": (summary_sentences[j]),

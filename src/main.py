@@ -73,7 +73,9 @@ def generate_and_process_llm_responses(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run LLM with different prompts.")
+    parser = argparse.ArgumentParser(
+        description="Given a text file to summarize, run LLM with different prompts and temperatures to generate summaries and evaluate them."
+    )
     parser.add_argument(
         "--debug",
         default=True,
