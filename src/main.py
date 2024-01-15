@@ -1,3 +1,5 @@
+import re
+import argparse
 from typing import List
 from openai import OpenAI
 from utils import (
@@ -6,8 +8,6 @@ from utils import (
     process_llm_results,
 )
 from logger import logger
-import re
-import argparse
 
 
 def generate_and_process_llm_responses(

@@ -2,7 +2,7 @@ import os
 import re
 import textwrap
 import spacy
-import openai
+import asyncio
 import numpy as np
 from typing import List, Set, Union, Dict
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -20,7 +20,7 @@ from bert_score import score as bert_score
 from typing import List
 from pydantic import BaseModel, ValidationError
 from logger import logger
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 
 install(show_locals=False, width=120)
 console = Console()
@@ -55,18 +55,22 @@ nlp = spacy.load("en_core_web_lg")
 # Load the OpenAI API key from the environment variables
 env_values = get_env_values()
 openai_api_key = env_values["OPENAI_API_KEY"]
-client = openai.OpenAI(api_key=openai_api_key)
-
+client_async = AsyncOpenAI(api_key=openai_api_key)
+client_sync = OpenAI(
+    api_key=openai_api_key
+)
 
 @retry(tries=3, delay=2, backoff=2)
-def get_embedding(text: str, model="text-embedding-ada-002", **kwargs) -> List[float]:
+async def aget_embedding(
+    text: str, model="text-embedding-ada-002", **kwargs
+) -> List[float]:
     # replace newlines, which can negatively affect performance.
     text = text.replace("\n", " ")
-    return client.embeddings.create(input=[text], model=model).data[0].embedding
+    return (await client_async.embeddings.create(input=[text], model=model).data[0].embedding)
 
 
 @retry(tries=3, delay=2, backoff=2)
-def get_embeddings(
+async def aget_embeddings(
     list_of_text: List[str], model="text-embedding-ada-002", **kwargs
 ) -> List[List[float]]:
     assert len(list_of_text) <= 2048, "The batch size should not be larger than 2048."
@@ -74,7 +78,9 @@ def get_embeddings(
     # replace newlines, which can negatively affect performance.
     list_of_text = [text.replace("\n", " ") for text in list_of_text]
 
-    data = client.embeddings.create(input=list_of_text, model=model, **kwargs).data
+    data = (await client_async.embeddings.create(
+        input=list_of_text, model=model, **kwargs
+    )).data
     return [d.embedding for d in data]
 
 
@@ -290,7 +296,7 @@ def process_llm_results(
     # GPT-based Evaluation
     justification_text = ""
     try:
-        gpt_evaluation = g_eval_with_gpt(generated_text, text, client)
+        gpt_evaluation = g_eval_with_gpt(generated_text, text, client_sync)
         if gpt_evaluation and gpt_evaluation.evaluations:
             evaluation = gpt_evaluation.evaluations[0]
             advanced_analysis_table.add_row(
@@ -508,9 +514,9 @@ def cosine_similarity_embeddings(
         # Splitting the original text into sentences
         original_sentences = [sent.text for sent in nlp(original_text).sents]
         summary_sentences = [sent.text for sent in nlp(summary).sents]
-        # Getting embeddings for each sentence in the original text and the entire summary
-        original_embeddings = get_embeddings(original_sentences)
-        summary_embeddings = get_embeddings(summary_sentences)
+        # Getting embeddings for each sentence in the original text and generated summary
+        original_embeddings = asyncio.run(aget_embeddings(original_sentences))
+        summary_embeddings = asyncio.run(aget_embeddings(summary_sentences))
 
         scores = []
 
@@ -646,14 +652,14 @@ class GptEvaluation(BaseModel):
     evaluations: List[EvaluationResponse]
 
 
-def g_eval_with_gpt(summary: str, document: str, client: OpenAI) -> GptEvaluation:
+def g_eval_with_gpt(summary: str, document: str, client_sync: OpenAI) -> GptEvaluation:
     """
     Evaluates a given summary text using GPT-based evaluation tool.
 
     Args:
         summary (str): The summary text to be evaluated.
         document (str): The original document text related to the summary.
-        client: The client object to interact with the OpenAI API.
+        client_sync(OpenAI): The client object to interact with the OpenAI API.
 
     Returns:
         GptEvaluation: An object containing the evaluation results.
@@ -673,7 +679,7 @@ def g_eval_with_gpt(summary: str, document: str, client: OpenAI) -> GptEvaluatio
     messages = [{"role": "system", "content": evaluation_prompt}]
 
     try:
-        resp = client.chat.completions.create(
+        resp = client_sync.chat.completions.create(
             messages=messages,
             model="gpt-3.5-turbo",
             tools=[
