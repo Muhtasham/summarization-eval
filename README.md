@@ -35,8 +35,6 @@ Example:
 python main.py --file-path "assets/news.txt"
 ```
 
-This command will process the summary in `news.txt`, evaluating it using the suite of metrics and models integrated into the project.
-
 **Note**: You will need to have an OpenAI API key set up in your environment to run the script.
 
 ## Contributing
