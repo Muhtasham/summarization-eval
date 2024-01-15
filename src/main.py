@@ -104,7 +104,7 @@ if __name__ == "__main__":
         # "Please perform extractive summarization on the following text",
         "Summarize the following text briefly",
     ]
-    temperatures = [0.2, 0.7] # Low and high temperatures for some variety
+    temperatures = [0.2, 0.7]  # Low and high temperatures for some variety
 
     generate_and_process_llm_responses(
         client, news_text, args.debug, "Original Text", system_prompts, temperatures, []

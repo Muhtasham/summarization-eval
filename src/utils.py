@@ -101,8 +101,8 @@ def process_llm_results(
             Panel.fit(
                 generated_text,
                 title="Generated Summary",
-                subtitle=f"[bold red]{llm_name}[/bold red]"
-                )
+                subtitle=f"[bold red]{llm_name}[/bold red]",
+            )
         )
     except Exception as e:
         logger.error(f"Error extracting generated text: {e}")
