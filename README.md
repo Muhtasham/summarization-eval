@@ -1,9 +1,5 @@
 
-# Reference-Free Evaluation for Summarization
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-## Overview
+# 📝 Reference-Free automatic evaluation for text summarization
 
 Elegantly automate text summarization evaluation in a context-based, reference-free manner, featuring aesthetically pleasing and easily interpretable results.
 
