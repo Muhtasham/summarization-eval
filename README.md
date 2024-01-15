@@ -8,11 +8,12 @@ Elegantly automate text summarization evaluation in reference-free manner with p
 
 ## Features
 
-- **Custom Metrics**: Utilize metrics such as word overlap and Jaccard similarity for in-depth content analysis.
-- **Hallucination Detection**: Systematically identify hallucinated content in summaries by analyzing semantic discrepancies with the original text, also use new word detection to identify potentially hallucinated summaries.
-- **GPT-based Evaluation**: Employ GPT models for nuanced qualitative assessments of summaries.
-- **Adapted ROUGE & BERTScore**: Rework traditional metrics for use in a reference-free context, focusing on the intrinsic qualities of summaries, as highlighted in [Eugene Yan's writing](https://eugeneyan.com/writing/abstractive/).
 - **Easy to Use**: Simply provide a text file containing the summary to be evaluated, and the script will handle the rest.
+- **Custom Metrics**: Utilize metrics such as word overlap and Jaccard similarity for in-depth content analysis.
+- **Hallucination Detection**: Systematically identify hallucinated content in summaries by analyzing semantic discrepancies with the original text, also use new word detection to identify potentially hallucinated summaries.If you came here for this just check `detect_hallucinations` under `src/utils.py`.
+- **GPT-based Evaluation**: Use GPT for nuanced qualitative assessments of summaries which takes care of json enforcement with pydantic, for easier parsing.
+- **Adapted ROUGE & BERTScore**: Rework traditional metrics for use in a reference-free context, focusing on the intrinsic qualities of summaries, as highlighted in [Eugene Yan's writing](https://eugeneyan.com/writing/abstractive/).
+- **Extensible**: Easily add new metrics and models to the project to expand its capabilities, open an issue or a PR if you want to add something.
 
 ## Installation
 
