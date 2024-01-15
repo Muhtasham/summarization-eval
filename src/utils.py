@@ -585,7 +585,6 @@ def detect_hallucinations(
 
 
 # based on https://eugeneyan.com/writing/abstractive/
-# ToDO: verify the metrics
 def calculate_rouge_c(summary: str, document: str):
     """
     Calculates ROUGE scores comparing a summary with the source document.

@@ -1,15 +1,20 @@
 
-# Context-based (Reference-Free) Evaluation for Abstractive Summaries
+# Reference-Free Evaluation for Summarization
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-This project offers a suite of tools for automated evaluation of text summarizations in a context-based, reference-free manner. It uniquely assesses summaries through a blend of custom metrics and established metrics from literature, including those based on large language models. The results are elegantly displayed in the terminal, providing an insightful analysis of summary quality.
+Elegantly automate text summarization evaluation in a context-based, reference-free manner, featuring aesthetically pleasing and easily interpretable results.
+
+![Demo 1](assets/demo1.png)
+![Demo 2](assets/demo2.png)
 
 ## Features
 
 - **Custom Metrics**: Utilize metrics such as word overlap and Jaccard similarity for in-depth content analysis.
-- **Hallucination Detection**: Systematically identify and highlight hallucinated or fabricated content in summaries.
-- **GPT-based Evaluation**: Employ GPT models for nuanced qualitative assessments of summaries, inspired by ideas discussed in [Eugene Yan's work on abstractive summarization](https://eugeneyan.com/writing/abstractive/).
+- **Hallucination Detection**: Systematically identify hallucinated content in summaries by analyzing semantic discrepancies with the original text, also use new word detection to identify potentially hallucinated summaries.
+- **GPT-based Evaluation**: Employ GPT models for nuanced qualitative assessments of summaries.
 - **Adapted ROUGE & BERTScore**: Rework traditional metrics for use in a reference-free context, focusing on the intrinsic qualities of summaries, as highlighted in [Eugene Yan's writing](https://eugeneyan.com/writing/abstractive/).
 
 ## Main Functionality
@@ -37,11 +42,6 @@ python main.py --input_file "assets/news.txt"
 ```
 
 This command will process the summary in `news.txt`, evaluating it using the suite of metrics and models integrated into the project.
-
-Here what the output looks like:
-
-![Demo 1](assets/demo1.png)
-![Demo 2](assets/demo2.png)
 
 **Note**: You will need to have an OpenAI API key set up in your environment to run the script.
 
