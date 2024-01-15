@@ -106,8 +106,8 @@ def process_llm_results(
         rprint(
             Panel.fit(
                 generated_text,
-                title="Generated Summary",
-                subtitle=f"[bold red]{llm_name}[/bold red]",
+                title="[bold red] Generated Summary [/bold red]",
+                subtitle=f"{llm_name}" if debug else None
             )
         )
     except Exception as e:
@@ -525,9 +525,10 @@ def cosine_similarity_embeddings(
             for j, summ_emb in enumerate(summary_embeddings):
                 score = cosine_similarity(orig_emb, summ_emb)
                 scores.append(
-                    {
-                        "original_sentence": wrap_text(original_sentences[i]),
-                        "summary_sentence": wrap_text(summary_sentences[j]),
+                    {   
+                        # if text is too long, you can use wrap_text to wrap it
+                        "original_sentence": (original_sentences[i]),
+                        "summary_sentence": (summary_sentences[j]),
                         "score": score,
                     }
                 )
@@ -682,6 +683,7 @@ def g_eval_with_gpt(summary: str, document: str, client_sync: OpenAI) -> GptEval
         resp = client_sync.chat.completions.create(
             messages=messages,
             model="gpt-3.5-turbo",
+            seed=42,
             tools=[
                 {
                     "type": "function",
